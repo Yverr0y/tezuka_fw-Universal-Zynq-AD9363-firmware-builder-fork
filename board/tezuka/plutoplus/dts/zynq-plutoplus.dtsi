@@ -54,7 +54,7 @@
 };
 
 &uart1 {
-        u-boot,dm-pre-reloc;
+        bootph-all;
         status = "okay";
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_uart1_default>;
@@ -67,10 +67,15 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gem0_default>;
 
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-	ethernet_phy: ethernet-phy@1 {
-		reg = <1>;
-		device_type = "ethernet-phy";
+		ethernet_phy: ethernet-phy@1 { /* Realtek RTL8211E */
+			reg = <1>;
+			compatible = "ethernet-phy-id001c.c915",
+				     "ethernet-phy-ieee802.3-c22";
+		};
 	};
 };
 
@@ -135,6 +140,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c400000 0x1000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 57 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -156,6 +162,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c420000 0x1000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 56 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -232,7 +239,7 @@
 
 		/* Enable CMOS Mode */
 		adi,full-port-enable;
-		adi,digital-interface-tune-fir-disable;
+		#adi,digital-interface-tune-fir-disable;
 
 		
 		adi,tx-fb-clock-delay = <0>;

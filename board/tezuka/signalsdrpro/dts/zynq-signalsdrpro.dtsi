@@ -14,7 +14,7 @@
 #include <dt-bindings/iio/adc/adi,ad9361.h>
 
 / {
-	model = "Analog Devices PlutoSDR Rev.A (Z7010/AD9363)";
+	model = "SignaSDRPro (Z7020/AD9361)";
 	memory {
 		device_type = "memory";
 		reg = <0x00000000 0x40000000>;
@@ -97,10 +97,14 @@
 	phy-mode = "rgmii-id";
 	phy-handle = <&phy0>;
 
-	phy0: phy@0 { /* Marvell 88e1512 */
-		reg = <0>;
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reset-gpios = <&gpio0 46 1>;
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		phy0: ethernet-phy@0 { /* Marvell 88e1512 */
+			reg = <0>;
+			compatible = "ethernet-phy-ieee802.3-c22";
+		};
 	};
 };
 
@@ -164,6 +168,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c400000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 57 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -185,6 +190,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c420000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 56 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -204,6 +210,7 @@
 
 		maia_sdr: maia-sdr@7c460000 {
 			compatible = "uio_pdrv_genirq";
+			linux,uio-name = "maia-sdr";
 			reg = <0x7c460000 0x1000>;
 			clocks = <&clkc 15>;
 			interrupt-parent = <&intc>;
@@ -270,7 +277,7 @@
 
 		/* Enable CMOS Mode */
 		adi,full-port-enable;
-		adi,digital-interface-tune-fir-disable;
+		#adi,digital-interface-tune-fir-disable;
 
 		
 		adi,tx-fb-clock-delay = <0>;

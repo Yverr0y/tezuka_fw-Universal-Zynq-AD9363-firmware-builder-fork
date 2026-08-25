@@ -2,6 +2,8 @@
 #https://www.analog.com/media/cn/technical-documentation/user-guides/AD9364_Register_Map_Reference_Manual_UG-672.pdf
 
 adphys="$(cat /sys/bus/iio/devices/iio:device0/name)"
+tx_power_save=$(fw_printenv -n tx_power_save)
+
 
 ptton()
 {
@@ -11,10 +13,16 @@ ptton()
 
                 echo 0x27 > /sys/kernel/debug/iio/iio:device0/direct_reg_access
                 CURRENT_VALUE=$(cat  /sys/kernel/debug/iio/iio:device0/direct_reg_access | grep -o '0x[0-9a-fA-F]\+')
+                if [ "$tx_power_save" = "yes" ] ; then
+                        echo 0 > /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown  
+                fi
         else
 
                 echo 0x27 > /sys/kernel/debug/iio/iio:device1/direct_reg_access
                 CURRENT_VALUE=$(cat  /sys/kernel/debug/iio/iio:device1/direct_reg_access | grep -o '0x[0-9a-fA-F]\+')
+                if [ "$tx_power_save" = "yes" ] ; then
+                        echo 0 > /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown  
+                fi
         fi
         
         if [ -z "$CURRENT_VALUE" ]; then
@@ -44,7 +52,9 @@ ptton()
                 echo "0x27 $RESULT_VALUE_HEX" > /sys/kernel/debug/iio/iio:device1/direct_reg_access
     fi
 
-    echo 1 > /sys/class/gpio/gpio906/value
+    #echo 1 > /sys/class/gpio/gpio906/value
+    #gpioset  gpiochip0 80=1
+    echo 1 > /sys/class/leds/ptt/brightness
     echo "$(date) watchconsoleTX PTT_ON" >> /tmp/lnb.txt    
 
 
@@ -58,10 +68,18 @@ pttoff()
 
                 echo 0x27 > /sys/kernel/debug/iio/iio:device0/direct_reg_access
                 CURRENT_VALUE=$(cat  /sys/kernel/debug/iio/iio:device0/direct_reg_access | grep -o '0x[0-9a-fA-F]\+')
+                if [ "$tx_power_save" = "yes" ] ; then
+                        echo 1 > /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown  
+                fi
+                
         else
 
                 echo 0x27 > /sys/kernel/debug/iio/iio:device1/direct_reg_access
                 CURRENT_VALUE=$(cat  /sys/kernel/debug/iio/iio:device1/direct_reg_access | grep -o '0x[0-9a-fA-F]\+')
+                if [ "$tx_power_save" = "yes" ] ; then
+                        echo 1 > /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown  
+                fi
+                
         fi
 
 
@@ -92,7 +110,9 @@ pttoff()
     else
         echo "0x27 $RESULT_VALUE_HEX" > /sys/kernel/debug/iio/iio:device1/direct_reg_access
     fi
-    echo 0 > /sys/class/gpio/gpio906/value
+    #echo 0 > /sys/class/gpio/gpio906/value
+    #gpioset  gpiochip0 80=0
+    echo 0 > /sys/class/leds/ptt/brightness
     echo "$(date) watchconsoleTX PTT_OFF" >> /tmp/lnb.txt
 }
 
@@ -108,10 +128,31 @@ else
 fi
 
 #MIO for plutoplus : MIO start at 906, EMIO at 960
-echo "906" > /sys/class/gpio/export
-echo out > /sys/class/gpio/gpio906/direction
+#echo "906" > /sys/class/gpio/export
+#echo out > /sys/class/gpio/gpio906/direction
 
 pttoff
+
+# Initialize the history variable before starting the loop
+LAST_COUNT=$(grep "7c42" /proc/interrupts | awk '{print $2 + $3}')
+
+check_tx_flux() {
+  # Get the current absolute count immediately
+    CURRENT_COUNT=$(grep "7c42" /proc/interrupts | awk '{print $2 + $3}')
+    
+    # Compare it directly to the previous loop's count
+    DELTA=$((CURRENT_COUNT - LAST_COUNT))
+    
+    # Save the current count as history for the NEXT loop execution
+    LAST_COUNT=$CURRENT_COUNT
+
+    if [ "$DELTA" -gt 0 ]; then
+        ptton
+    else
+        pttoff
+    fi
+}
+
 
 loop()
 {
@@ -119,21 +160,8 @@ loop()
 
 while :
 do
-if [ "$adphys" = "ad9361-phy" ] ; then
-inotifywait -e modify /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown
-txmute=$(cat /sys/bus/iio/devices/iio:device0/out_altvoltage1_TX_LO_powerdown)
-else
-inotifywait -e modify /sys/bus/iio/devices/iio:device1/out_altvoltage1_TX_LO_powerdown
-txmute=$(cat /sys/bus/iio/devices/iio:device1/out_altvoltage1_TX_LO_powerdown)
-fi
-if [ "$txmute" = "1" ] ; then
-echo "SdrConsole PTT OFF"
-pttoff
-else
-
-   echo "SdrConsole PTT ON"
-   ptton
-fi
+        check_tx_flux
+        sleep 1
 done
 }
 

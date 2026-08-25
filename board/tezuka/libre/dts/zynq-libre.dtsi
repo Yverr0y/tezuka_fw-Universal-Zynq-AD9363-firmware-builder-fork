@@ -6,7 +6,7 @@
  *
  * Licensed under the GPL-2.
  */
-#include "zynq.dtsi"
+#include "zynq-7000.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
@@ -102,19 +102,28 @@
     };
 
 &uart0 {
-    u-boot,dm-pre-reloc;
+    bootph-all;
 	status = "okay";
 };
+
+&clkc {
+	ps-clk-frequency = <50000000>;
+};
+
 
 &gem0 {
 	status = "okay";
 	phy-mode = "rgmii-id";
 	phy-handle = <&phy0>;
 
-	phy0: phy@0 { /* Marvell 88e1512 */
-		reg = <0>;
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reset-gpios = <&gpio0 46 1>;
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		phy0: ethernet-phy@0 { /* Marvell 88e1512 */
+			reg = <0>;
+			compatible = "ethernet-phy-ieee802.3-c22";
+		};
 	};
 };
 
@@ -170,6 +179,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c400000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 57 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -191,6 +201,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c420000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 56 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -210,6 +221,7 @@
 
 		maia_sdr: maia-sdr@7c460000 {
 			compatible = "uio_pdrv_genirq";
+			linux,uio-name = "maia-sdr";
 			reg = <0x7c460000 0x1000>;
 			clocks = <&clkc 15>;
 			interrupt-parent = <&intc>;

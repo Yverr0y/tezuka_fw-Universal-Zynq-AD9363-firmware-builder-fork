@@ -43,6 +43,7 @@
 			description = "FPGA";
 			data = /incbin/("system_top.bit");
 			type = "fpga";
+			compatible = "u-boot,fpga-legacy";
 			arch = "arm";
 			compression = "none";
 			load = <0xF000000>;
@@ -66,11 +67,11 @@
 		};
 		ramdisk@1 {
 			description = "Ramdisk";
-			data = /incbin/("rootfs.cpio.gz");
+			data = /incbin/("rootfs.cpio.xz");
 			type = "ramdisk";
 			arch = "arm";
 			os = "linux";
-			compression = "gzip";
+			compression = "none";
 			hash@1 {
 				algo = "md5";
 			};

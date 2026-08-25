@@ -15,7 +15,7 @@
 #include <dt-bindings/iio/adc/adi,ad9361.h>
 
 / {
-	model = "Analog Devices ANTSDR Rev.C (Z7020/AD9363)";
+	model = "ANTSDR E200 (Z7020/AD9363)";
 	memory {
 		device_type = "memory";
 		reg = <0x00000000 0x20000000>;
@@ -101,24 +101,27 @@
 
 &gem0 {
 	status = "okay";
-	
+
 	phy-handle = <&phy0>;
-	phy-mode = "rgmii-rxid";
-	xlnx,has-mdio = <0x1>;
+	phy-mode = "rgmii-id";
 	gmii2rgmii-phy-handle = <&gmii_to_rgmii_0>;
-	
-	phy0: phy@1 {
-		compatible = "ethernet-phy-id011c.c916";
-		device_type = "ethernet-phy";
-		reg = <0x1>;
-	};
 
-	gmii_to_rgmii_0: gmiitorgmii@8 {
-		compatible = "xlnx,gmii-to-rgmii-1.0";
-		reg = <0x8>;
-		phy-handle = <&phy0>;
-	};
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
+		phy0: ethernet-phy@1 { /* Realtek RTL8211F */
+			compatible = "ethernet-phy-id001c.c916",
+				     "ethernet-phy-ieee802.3-c22";
+			reg = <0x1>;
+		};
+
+		gmii_to_rgmii_0: gmiitorgmii@8 {
+			compatible = "xlnx,gmii-to-rgmii-1.0";
+			reg = <0x8>;
+			phy-handle = <&phy0>;
+		};
+	};
 };
 
 &qspi {
@@ -173,6 +176,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c400000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 57 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -194,6 +198,7 @@
 			compatible = "adi,axi-dmac-1.00.a";
 			reg = <0x7c420000 0x10000>;
 			#dma-cells = <1>;
+			interrupt-parent = <&intc>;
 			interrupts = <0 56 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clkc 16>;
 
@@ -213,6 +218,7 @@
 
 		maia_sdr: maia-sdr@7C460000 {
 			compatible = "uio_pdrv_genirq";
+			linux,uio-name = "maia-sdr";
 			reg = <0x7c460000 0x1000>;
 			clocks = <&clkc 15>;
 			interrupt-parent = <&intc>;
@@ -282,7 +288,7 @@
 
 		/* Enable CMOS Mode */
 		adi,full-port-enable;
-		adi,digital-interface-tune-fir-disable;
+		#adi,digital-interface-tune-fir-disable;
 
 		adi,digital-interface-tune-skip-mode = <0>; /* TUNE RX & TX */
 		adi,tx-fb-clock-delay = <0>;

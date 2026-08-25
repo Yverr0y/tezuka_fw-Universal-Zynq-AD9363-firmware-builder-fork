@@ -48,6 +48,11 @@
 	
 };
 
+&clkc {
+    bootph-all;
+    ps-clk-frequency = <50000000>;
+};
+
 
 
 	
@@ -58,7 +63,7 @@
 	is-dual = <0>;
 	num-cs = <1>;
 	flash@0 {
-		compatible = "n25q512a","micron,m25p80";
+		compatible = "n25q512a","micron,m25p80","jedec,spi-nor";
 		reg = <0x0>;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <4>;
@@ -94,7 +99,7 @@
 	usb-phy = <&usb_phy0>;
 };
 &sdhci0 {
-	u-boot,dm-pre-reloc;
+	bootph-all;
 	status = "okay";
 	
 };
@@ -106,6 +111,5 @@
 
 	ethernet_phy0: ethernet-phy@0 {
 		reg = <0>;
-		reset-gpios = <&gpio0 46 0>;
 	};
 };
