@@ -2,7 +2,7 @@
 const { useState: useStateD, useEffect: useEffectD, useRef: useRefD, useCallback: useCBD } = React;
 
 // Set to the device IP for local development; leave null to use window.location.hostname (on-device)
-const MQTT_DEV_HOST = '10.0.0.59';
+const MQTT_DEV_HOST = '10.0.0.58';
 // Exposed for use in other pages (e.g. spectrum WebSocket)
 window._tezukaDevHost = MQTT_DEV_HOST || window.location.hostname;
 
@@ -111,6 +111,18 @@ function applyMqtt(prev, path, raw) {
     case 'system/kalibrate/log':        return { ...prev, kalibrateLog: [...prev.kalibrateLog, raw] };
     case 'system/gps/fix':             return { ...prev, gpsfix: raw };
     case 'system/gps/locator':         return { ...prev, gpsLocator: raw };
+    // vpn/config (the pasted conf, private key included) is intentionally
+    // never a state/ topic — nothing here should ever populate a raw config
+    // field from an incoming MQTT payload.
+    case 'vpn/enabled':                return { ...prev, vpnEnabled: raw };
+    case 'vpn/status': try { return { ...prev, vpnStatus: JSON.parse(raw) }; } catch { return prev; }
+    case 'classifier/enabled':         return { ...prev, classifierEnabled: raw };
+    case 'classifier/label':           return { ...prev, classifierLabel: raw };
+    case 'classifier/confidence':      return { ...prev, classifierConfidence: raw };
+    case 'classifier/freq_offset':     return { ...prev, classifierFreqOffset: raw };
+    case 'classifier/bandwidth_bins':  return { ...prev, classifierBandwidthBins: raw };
+    case 'classifier/frame_bins':      return { ...prev, classifierFrameBins: raw };
+    case 'classifier/template_id':     return { ...prev, classifierTemplateId: raw };
     case 'operator/name':               return { ...prev, opName: raw };
     case 'operator/callsign':           return { ...prev, opCallsign: raw };
     case 'operator/locator':            return { ...prev, opLocator: raw };
@@ -154,6 +166,7 @@ function useLiveData(running = true) {
     gainTableConfig: null,
     kalibrateStatus: '', kalibrateChannels: [], kalibrateResultPpm: null, kalibrateResultPpb: null, kalibrateLog: [],
     gpsfix: null, gpsLocator: null,
+    vpnEnabled: null, vpnStatus: null,
   }));
 
   // MQTT connection — ws://[hostname]:9001/mqtt  or  wss://[hostname]:9002/mqtt over HTTPS
@@ -301,6 +314,14 @@ function TextInput({ value, onChange, suffix, mono = true, invalid = false, ...r
   );
 }
 
+function TextArea({ value, onChange, rows = 8, mono = true, invalid = false, ...rest }) {
+  return (
+    <div className={"text-input text-area" + (invalid ? " invalid" : "")}>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className={mono ? "mono" : ""} {...rest} />
+    </div>
+  );
+}
+
 function Checkbox({ checked, onChange, label }) {
   return (
     <label className="chk">
@@ -311,4 +332,4 @@ function Checkbox({ checked, onChange, label }) {
   );
 }
 
-Object.assign(window, { useLiveData, fmtUptime, Card, Pill, Toggle, Slider, Field, Select, TextInput, Checkbox });
+Object.assign(window, { useLiveData, fmtUptime, Card, Pill, Toggle, Slider, Field, Select, TextInput, TextArea, Checkbox });
