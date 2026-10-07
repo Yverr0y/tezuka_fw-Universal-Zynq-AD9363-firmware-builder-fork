@@ -1,3 +1,5 @@
+// Modified by Christos Nikolaou (SV1EIA) 2026.
+// Christos Nikolaou can be reached by email at : sv1eia@gmail.com
 // data.jsx — MQTT live data + shared UI primitives
 const { useState: useStateD, useEffect: useEffectD, useRef: useRefD, useCallback: useCBD } = React;
 
@@ -123,9 +125,30 @@ function applyMqtt(prev, path, raw) {
     case 'classifier/bandwidth_bins':  return { ...prev, classifierBandwidthBins: raw };
     case 'classifier/frame_bins':      return { ...prev, classifierFrameBins: raw };
     case 'classifier/template_id':     return { ...prev, classifierTemplateId: raw };
+    // Per-frame scalar features (experimental) — published every cycle
+    // regardless of match outcome, so these populate even while
+    // classifierLabel is "unknown". See extract_frame_features() in
+    // app/classifier/classifier.c.
+    case 'classifier/feature_bandwidth_bins': return { ...prev, classifierFeatureBandwidthBins: raw };
+    case 'classifier/feature_papr_db':        return { ...prev, classifierFeaturePaprDb: raw };
+    case 'classifier/feature_flatness':       return { ...prev, classifierFeatureFlatness: raw };
+    case 'classifier/feature_peak_count':     return { ...prev, classifierFeaturePeakCount: raw };
+    // Cross-cycle features (experimental) — "n/a" (a literal string, not a
+    // number) until the daemon's rolling history has enough samples; see
+    // history_compute() in app/classifier/classifier.c.
+    case 'classifier/feature_drift_bins_s':     return { ...prev, classifierFeatureDriftBinsS: raw };
+    case 'classifier/feature_duty_cycle_pct':   return { ...prev, classifierFeatureDutyCyclePct: raw };
     case 'operator/name':               return { ...prev, opName: raw };
     case 'operator/callsign':           return { ...prev, opCallsign: raw };
     case 'operator/locator':            return { ...prev, opLocator: raw };
+    // ADF4001 boards (PlutoSky R2): the FPGA controller publishes the real
+    // state; hw/mode/present/cp/state/count only exist there.
+    case 'system/clkref/hw':             return { ...prev, clkrefHw: raw };
+    case 'system/clkref/mode':           return { ...prev, clkrefMode: raw };
+    case 'system/clkref/present':        return { ...prev, clkrefPresent: raw };
+    case 'system/clkref/cp':             return { ...prev, clkrefCp: raw };
+    case 'system/clkref/state':          return { ...prev, clkrefState: raw };
+    case 'system/clkref/count':          { const v = parseInt(raw, 10); return { ...prev, clkrefCount: isFinite(v) ? v : null }; }
     case 'system/clkref/source':         return { ...prev, clkrefSource: raw };
     case 'system/clkref/lock':           return { ...prev, clkrefLock: raw };
     case 'system/clkref/frequency':      return { ...prev, clkrefFrequency: raw };

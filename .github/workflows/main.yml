@@ -40,6 +40,9 @@ run-name: >-
 jobs:
   matrix:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       # 'true' iff exactly one board in the matrix. Used by tezuka
@@ -96,6 +99,32 @@ jobs:
             jq -r '.[] | "- `\(.board)` -> `\(.defconfig)`"' <<<"$INCLUDE"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # workflow_dispatch runs aren't reported in the workflow_run event's
+      # own pull_requests field (that's only populated for pull_request /
+      # pull_request_target triggers), so the pr-comment workflow can't
+      # resolve a PR number itself. Resolve it here, while we still have
+      # github.sha, and hand it off as an artifact -- the commits/pulls
+      # endpoint matches on commit SHA regardless of how the run that
+      # built that SHA was triggered.
+      - name: Resolve associated PR number
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PR=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.state == "open")] | first | .number // ""')
+          echo "$PR" > pr-number.txt
+          echo "Resolved PR for ${{ github.sha }}: ${PR:-none}"
+
+      - name: Upload PR number
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-number
+          path: pr-number.txt
+          if-no-files-found: warn
+
   tezuka:
     needs: matrix
     runs-on: ubuntu-22.04
@@ -111,6 +140,12 @@ jobs:
       BR2_EXTERNAL: ${{ github.workspace }}
       BR2_DL_DIR: /home/runner/br-dl
       OUTPUT_DIR: ${{ github.workspace }}/output/${{ matrix.board }}
+      # CMake 4.x (Buildroot's own host-cmake, bumped as part of the
+      # Buildroot 2026.05.2 update) hard-errors on any CMakeLists.txt with
+      # an old cmake_minimum_required() floor instead of just warning (see
+      # sourceme.first). CI calls `make -C buildroot` directly rather than
+      # through build.sh/sourceme.first, so it needs its own copy of this.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
     steps:
       - uses: actions/checkout@v6
@@ -122,7 +157,22 @@ jobs:
           android: true
           dotnet: true
           haskell: true
-          large-packages: false
+          # Was false. A real fresh build (not the usual cache-hit
+          # re-finalize -- see "Restore Buildroot output" above) has
+          # been seen to fail instantly and silently at "Build kernel"
+          # on this runner, immediately after the kernel dts fix
+          # (35377178709, 35382993872) made these builds genuinely
+          # compile again instead of skipping via a stale per-board
+          # output/ cache. Never confirmed as disk exhaustion (no df
+          # output existed to check -- that's what the two diagnostic
+          # steps below are for), but it's the leading candidate:
+          # large-packages reclaims several more GB of preinstalled
+          # apt packages (google-cloud-cli, firefox, etc.) this job
+          # never uses, at negligible risk.
+          large-packages: true
+
+      - name: Disk space after cleanup
+        run: df -h /
 
       - name: Install build dependencies
         run: |
@@ -176,7 +226,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.OUTPUT_DIR }}
-          key: output-${{ matrix.board }}-${{ hashFiles('package/**/*.mk', 'package/**/*.hash', 'buildroot.version', 'patches/buildroot/**', 'board/tezuka/common/patches/**', 'board/tezuka/**/kernel/**', format('configs/{0}', matrix.defconfig)) }}
+          key: output-${{ matrix.board }}-${{ hashFiles('package/**/*.mk', 'package/**/*.hash', 'package/**/Config.in', 'Config.in', 'buildroot.version', 'patches/buildroot/**', 'board/tezuka/common/patches/**', 'board/tezuka/**/kernel/**', format('configs/{0}', matrix.defconfig)) }}
 
       # uboot-env-hook.mk writes this in the source tree at U-Boot
       # extract time; with output/ cached, extract is skipped and the
@@ -202,8 +252,32 @@ jobs:
       - name: Build U-Boot
         run: make -C buildroot O="${OUTPUT_DIR}" uboot
 
+      # Ruled out disk exhaustion here: runs 35377178709/35382993872/
+      # 35390925732 all failed identically -- ">>> linux custom
+      # Building" then an instant, zero-output "Error 1" -- but
+      # 35390925732 ran with large-packages: true and still had 107G
+      # free right before this exact step (its own df -h, captured
+      # below, proved it). Also ruled out: local reproduction of this
+      # exact isolated step sequence (configure, then `make uboot`,
+      # then `make linux`, each a separate invocation matching this
+      # workflow) built the kernel fine both times tried. Kept this
+      # diagnostic since it's cheap and free-disk-space is a real
+      # improvement regardless.
+      - name: Disk space before kernel build
+        run: df -h /
+
+      # V=1: Buildroot's LINUX_BUILD_CMDS package-level recipe gives
+      # no output at all before failing on this runner, so the
+      # default pretty CC/HOSTCC/DTC lines aren't enough -- need the
+      # literal commands to see what actually fails. `set -x` too, in
+      # case the failure happens before make even reaches the point
+      # V=1 would normally start echoing (recipe/variable expansion,
+      # not command execution) -- belt and suspenders, this step's
+      # log is the only place either matters.
       - name: Build kernel
-        run: make -C buildroot O="${OUTPUT_DIR}" linux
+        run: |
+          set -x
+          make -C buildroot O="${OUTPUT_DIR}" linux V=1
 
       - name: Build rootfs
         run: make -C buildroot O="${OUTPUT_DIR}" target-finalize

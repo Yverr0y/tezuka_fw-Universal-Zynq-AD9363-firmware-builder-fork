@@ -12,8 +12,6 @@ fi
 
 cp "${BOARD_DIR}/LICENSE.template" "${BINARIES_DIR}/msd/LICENSE.html"
 cp -r "${BOARD_DIR}/msd/"* "${BINARIES_DIR}/msd/"
-python3 "${BOARD_DIR}/../../../Dashboard/bundle.py" "${BINARIES_DIR}/msd/dash/index.html"
-rm -rf "${BINARIES_DIR}/msd/dash/assets"
 LINUX_VERS=$(grep '^BR2_LINUX_KERNEL_VERSION' "${BR2_CONFIG}" | cut -d\" -f 2)
 UBOOT_VERS=$(grep '^BR2_TARGET_UBOOT_VERSION' "${BR2_CONFIG}" | cut -d\" -f 2)
 FW_VERSION=$(cd "${BOARD_DIR}" && git describe --abbrev=4 --always --tags)
@@ -94,3 +92,9 @@ ln -sf ../../wpa_supplicant/ifupdown.sh "${TARGET_DIR}/etc/network/if-pre-up.d/w
 ln -sf ../../wpa_supplicant/ifupdown.sh "${TARGET_DIR}/etc/network/if-post-down.d/wpasupplicant"
 
 ln -sf device_reboot "${TARGET_DIR}/usr/sbin/pluto_reboot"
+
+# maia-httpd serves static files from its CWD (/root, see S60maia-httpd).
+# Symlinking in the /boot FAT partition (mounted by S20fat-mount before
+# maia-httpd starts) lets files dropped in /boot/www/ on the SD card be
+# served at /www/... without a firmware rebuild.
+ln -sf /boot/www "${TARGET_DIR}/root/www"
